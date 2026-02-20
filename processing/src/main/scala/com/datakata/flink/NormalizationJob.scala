@@ -2,8 +2,6 @@ package com.datakata.flink
 
 import com.datakata.flink.model.SalesEvent
 import com.datakata.flink.serde.{SalesEventDeserializationSchema, SalesEventSerializationSchema}
-import io.openlineage.client.{OpenLineage, OpenLineageClient, OpenLineageClientUtils}
-import io.openlineage.client.transports.HttpConfig
 import org.apache.flink.api.common.eventtime.{SerializableTimestampAssigner, WatermarkStrategy}
 import org.apache.flink.connector.kafka.sink.{KafkaRecordSerializationSchema, KafkaSink}
 import org.apache.flink.connector.kafka.source.KafkaSource
@@ -11,9 +9,7 @@ import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsIni
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.slf4j.LoggerFactory
 
-import java.net.URI
-import java.time.{Duration, ZonedDateTime}
-import java.util.UUID
+import java.time.Duration
 
 object NormalizationJob:
 
@@ -52,12 +48,12 @@ object NormalizationJob:
       .fromSource(kafkaSource("sales.legacy", "flink-normalization-legacy"), watermarkStrategy, "Legacy SOAP Source")
 
     val unified = postgresSource
-      .map(e => e.copy(source = "postgres"))
+      .map((e: SalesEvent) => e.copy(source = "postgres"))
       .union(
-        filesSource.map(e => e.copy(source = "files")),
-        legacySource.map(e => e.copy(source = "legacy"))
+        filesSource.map((e: SalesEvent) => e.copy(source = "files")),
+        legacySource.map((e: SalesEvent) => e.copy(source = "legacy"))
       )
-      .map(e => e.copy(ingestionTime = System.currentTimeMillis()))
+      .map((e: SalesEvent) => e.copy(ingestionTime = System.currentTimeMillis()))
 
     val kafkaSink = KafkaSink.builder[SalesEvent]()
       .setBootstrapServers(kafkaBootstrap)
@@ -71,40 +67,9 @@ object NormalizationJob:
 
     unified.sinkTo(kafkaSink).name("Kafka Sink: sales.unified")
 
-    emitLineageEvent(marquezUrl, "NormalizationJob",
+    LineageEmitter.emit(marquezUrl, "NormalizationJob",
       List("sales.postgres", "sales.files", "sales.legacy"),
       List("sales.unified"))
 
     logger.info("Starting NormalizationJob - 3 sources -> sales.unified")
     env.execute("NormalizationJob")
-
-  private def emitLineageEvent(marquezUrl: String, jobName: String, inputs: List[String], outputs: List[String]): Unit =
-    try
-      val config = new HttpConfig()
-      config.setUrl(URI.create(marquezUrl))
-      val client = new OpenLineageClient(OpenLineageClientUtils.newTransportFromConfig(config))
-      val ol = new OpenLineage(URI.create("https://github.com/datakata/flink"))
-      val runId = UUID.randomUUID()
-
-      val inputDatasets = inputs.map { topic =>
-        ol.newInputDataset("kafka", topic, null, null)
-      }
-      val outputDatasets = outputs.map { topic =>
-        ol.newOutputDataset("kafka", topic, null, null)
-      }
-
-      import scala.jdk.CollectionConverters.*
-      val event = ol.newRunEventBuilder()
-        .eventType(OpenLineage.RunEvent.EventType.START)
-        .eventTime(ZonedDateTime.now())
-        .run(ol.newRun(runId, null))
-        .job(ol.newJob("data-kata", jobName, null))
-        .inputs(inputDatasets.asJava)
-        .outputs(outputDatasets.asJava)
-        .build()
-
-      client.emit(event)
-      logger.info("Emitted OpenLineage START event for {}", jobName)
-    catch
-      case e: Exception =>
-        logger.warn("Failed to emit OpenLineage event for {}: {}", jobName, e.getMessage)

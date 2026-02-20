@@ -3,8 +3,6 @@ package com.datakata.flink
 import com.datakata.flink.model.SalesEvent
 import com.datakata.flink.serde.SalesEventDeserializationSchema
 import com.datakata.flink.sink.ClickHouseSink
-import io.openlineage.client.{OpenLineage, OpenLineageClient, OpenLineageClientUtils}
-import io.openlineage.client.transports.HttpConfig
 import org.apache.flink.api.common.eventtime.{SerializableTimestampAssigner, WatermarkStrategy}
 import org.apache.flink.api.common.functions.AggregateFunction
 import org.apache.flink.connector.kafka.source.KafkaSource
@@ -17,16 +15,18 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.util.Collector
 import org.slf4j.LoggerFactory
 
-import java.net.URI
-import java.time.{Duration, Instant, ZoneOffset, ZonedDateTime}
+import java.time.{Duration, Instant, ZoneOffset}
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 import scala.jdk.CollectionConverters.*
 
 object TopSalesmanCountryJob:
 
   private val logger = LoggerFactory.getLogger(getClass)
   private val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC)
+
+  // Type aliases for readability
+  type SalesmanAgg = (String, String, String, String, Double, Long) // (windowStart, windowEnd, salesmanName, country, totalSales, txCount)
+  type SalesmanResult = (String, String, String, String, Double, Long, Int) // adds rank
 
   def main(args: Array[String]): Unit =
     val env = StreamExecutionEnvironment.getExecutionEnvironment
@@ -57,36 +57,16 @@ object TopSalesmanCountryJob:
       .keyBy((e: SalesEvent) => e.salesmanName)
       .window(TumblingEventTimeWindows.of(Time.hours(1)))
       .aggregate(new SalesmanAggregator(), new SalesmanWindowProcessor())
-      .keyBy((_: (String, String, String, String, Double, Long)) => _._1) // window_start
+      .keyBy((t: SalesmanAgg) => t._1)
       .process(new TopNSalesmanProcessor(10))
       .addSink(ClickHouseSink.topSalesmanCountrySink)
       .name("ClickHouse Sink: top_salesman_country")
 
-    emitLineageEvent(marquezUrl)
+    LineageEmitter.emit(marquezUrl, "TopSalesmanCountryJob",
+      List("sales.unified"), List("top_salesman_country"))
 
     logger.info("Starting TopSalesmanCountryJob - 1h tumbling windows, top 10 salesmen, BR only")
     env.execute("TopSalesmanCountryJob")
-
-  private def emitLineageEvent(marquezUrl: String): Unit =
-    try
-      val config = new HttpConfig()
-      config.setUrl(URI.create(marquezUrl))
-      val client = new OpenLineageClient(OpenLineageClientUtils.newTransportFromConfig(config))
-      val ol = new OpenLineage(URI.create("https://github.com/datakata/flink"))
-
-      val event = ol.newRunEventBuilder()
-        .eventType(OpenLineage.RunEvent.EventType.START)
-        .eventTime(ZonedDateTime.now())
-        .run(ol.newRun(UUID.randomUUID(), null))
-        .job(ol.newJob("data-kata", "TopSalesmanCountryJob", null))
-        .inputs(java.util.List.of(ol.newInputDataset("kafka", "sales.unified", null, null)))
-        .outputs(java.util.List.of(ol.newOutputDataset("clickhouse", "top_salesman_country", null, null)))
-        .build()
-      client.emit(event)
-      logger.info("Emitted OpenLineage START event for TopSalesmanCountryJob")
-    catch
-      case e: Exception =>
-        logger.warn("Failed to emit OpenLineage event: {}", e.getMessage)
 
   // Accumulator: (totalAmount, count)
   class SalesmanAggregator extends AggregateFunction[SalesEvent, (Double, Long), (Double, Long)]:
@@ -98,12 +78,12 @@ object TopSalesmanCountryJob:
       (a._1 + b._1, a._2 + b._2)
 
   // Emits (windowStart, windowEnd, salesmanName, country, totalSales, txCount)
-  class SalesmanWindowProcessor extends ProcessWindowFunction[(Double, Long), (String, String, String, String, Double, Long), String, TimeWindow]:
+  class SalesmanWindowProcessor extends ProcessWindowFunction[(Double, Long), SalesmanAgg, String, TimeWindow]:
     override def process(
         salesmanName: String,
-        context: ProcessWindowFunction[(Double, Long), (String, String, String, String, Double, Long), String, TimeWindow]#Context,
+        context: ProcessWindowFunction[(Double, Long), SalesmanAgg, String, TimeWindow]#Context,
         elements: java.lang.Iterable[(Double, Long)],
-        out: Collector[(String, String, String, String, Double, Long)]
+        out: Collector[SalesmanAgg]
     ): Unit =
       val window = context.window()
       val windowStart = dtf.format(Instant.ofEpochMilli(window.getStart))
@@ -113,11 +93,7 @@ object TopSalesmanCountryJob:
       }
 
   class TopNSalesmanProcessor(n: Int)
-      extends org.apache.flink.streaming.api.functions.KeyedProcessFunction[
-        String,
-        (String, String, String, String, Double, Long),
-        (String, String, String, String, Double, Long, Int)
-      ]:
+      extends org.apache.flink.streaming.api.functions.KeyedProcessFunction[String, SalesmanAgg, SalesmanResult]:
 
     import org.apache.flink.api.common.state.{ValueState, ValueStateDescriptor}
 
@@ -127,11 +103,9 @@ object TopSalesmanCountryJob:
       )
 
     override def processElement(
-        value: (String, String, String, String, Double, Long),
-        ctx: org.apache.flink.streaming.api.functions.KeyedProcessFunction[
-          String, (String, String, String, String, Double, Long), (String, String, String, String, Double, Long, Int)
-        ]#Context,
-        out: Collector[(String, String, String, String, Double, Long, Int)]
+        value: SalesmanAgg,
+        ctx: org.apache.flink.streaming.api.functions.KeyedProcessFunction[String, SalesmanAgg, SalesmanResult]#Context,
+        out: Collector[SalesmanResult]
     ): Unit =
       var buf = bufferState.value()
       if buf == null then buf = new java.util.ArrayList[String]()
@@ -141,10 +115,8 @@ object TopSalesmanCountryJob:
 
     override def onTimer(
         timestamp: Long,
-        ctx: org.apache.flink.streaming.api.functions.KeyedProcessFunction[
-          String, (String, String, String, String, Double, Long), (String, String, String, String, Double, Long, Int)
-        ]#OnTimerContext,
-        out: Collector[(String, String, String, String, Double, Long, Int)]
+        ctx: org.apache.flink.streaming.api.functions.KeyedProcessFunction[String, SalesmanAgg, SalesmanResult]#OnTimerContext,
+        out: Collector[SalesmanResult]
     ): Unit =
       val buf = bufferState.value()
       if buf != null && !buf.isEmpty then
