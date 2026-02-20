@@ -1,0 +1,26 @@
+{
+  "name": "debezium-postgres-sales",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "datakata",
+    "database.password": "datakata",
+    "database.dbname": "datakata",
+    "topic.prefix": "sales",
+    "table.include.list": "public.sales",
+    "slot.name": "debezium_sales",
+    "plugin.name": "pgoutput",
+    "publication.name": "debezium_pub",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "transforms": "route",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": ".*",
+    "transforms.route.replacement": "sales.postgres",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect"
+  }
+}

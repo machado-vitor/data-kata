@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:ch://${CLICKHOUSE_HOST:localhost}:${CLICKHOUSE_PORT:8123}/${CLICKHOUSE_DATABASE:datakata}
+    username: ${CLICKHOUSE_USER:datakata}
+    password: ${CLICKHOUSE_PASSWORD:datakata}
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+
+kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: results-api
+  endpoint:
+    health:
+      show-details: always

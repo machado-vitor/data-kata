@@ -1,0 +1,16 @@
+sale_id,salesman_name,city,country,amount,product,sale_date
+F001,Carlos Silva,São Paulo,BR,1250.00,Monitor,2026-02-19T08:00:00
+F002,Ana Oliveira,Rio de Janeiro,BR,3400.00,Laptop,2026-02-19T08:15:00
+F003,Pedro Santos,Belo Horizonte,BR,780.00,GPU,2026-02-19T08:30:00
+F004,Maria Souza,Curitiba,BR,120.00,Mouse,2026-02-19T08:45:00
+F005,João Costa,Porto Alegre,BR,2100.00,Laptop,2026-02-19T09:00:00
+F006,Fernanda Lima,Salvador,BR,450.00,SSD,2026-02-19T09:15:00
+F007,Roberto Almeida,Brasília,BR,95.00,Keyboard,2026-02-19T09:30:00
+F008,Juliana Ferreira,Florianópolis,BR,1800.00,Motherboard,2026-02-19T09:45:00
+F009,Lucas Rodrigues,Recife,BR,350.00,RAM,2026-02-19T10:00:00
+F010,Camila Martins,Fortaleza,BR,2700.00,Laptop,2026-02-19T10:15:00
+F011,Gustavo Pereira,São Paulo,BR,160.00,Headset,2026-02-19T10:30:00
+F012,Beatriz Nascimento,Rio de Janeiro,BR,550.00,Monitor,2026-02-19T10:45:00
+F013,Rafael Araújo,Belo Horizonte,BR,4200.00,Laptop,2026-02-19T11:00:00
+F014,Larissa Barbosa,Curitiba,BR,290.00,SSD,2026-02-19T11:15:00
+F015,Thiago Ribeiro,Porto Alegre,BR,85.00,Webcam,2026-02-19T11:30:00

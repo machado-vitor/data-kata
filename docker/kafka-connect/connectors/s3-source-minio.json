@@ -1,0 +1,20 @@
+{
+  "name": "s3-source-minio-sales",
+  "config": {
+    "connector.class": "com.github.jcustenborder.kafka.connect.spooldir.SpoolDirCsvSourceConnector",
+    "topic": "sales.files",
+    "input.path": "/data/spooldir/input",
+    "finished.path": "/data/spooldir/finished",
+    "error.path": "/data/spooldir/error",
+    "input.file.pattern": ".*\\.csv$",
+    "schema.generation.enabled": "false",
+    "csv.first.row.as.header": "true",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "key.schema": "{\"name\":\"SalesFileKey\",\"type\":\"STRUCT\",\"fieldSchemas\":{\"sale_id\":{\"type\":\"STRING\",\"isOptional\":false}}}",
+    "value.schema": "{\"name\":\"SalesFileValue\",\"type\":\"STRUCT\",\"fieldSchemas\":{\"sale_id\":{\"type\":\"STRING\",\"isOptional\":false},\"salesman_name\":{\"type\":\"STRING\",\"isOptional\":false},\"city\":{\"type\":\"STRING\",\"isOptional\":false},\"country\":{\"type\":\"STRING\",\"isOptional\":false},\"amount\":{\"type\":\"STRING\",\"isOptional\":false},\"product\":{\"type\":\"STRING\",\"isOptional\":false},\"sale_date\":{\"type\":\"STRING\",\"isOptional\":false}}}",
+    "batch.size": 100,
+    "poll.interval.ms": "60000"
+  }
+}
