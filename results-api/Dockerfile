@@ -1,4 +1,4 @@
-FROM gradle:8.7-jdk21 AS builder
+FROM gradle:9.4.0-jdk25 AS builder
 
 WORKDIR /app
 COPY build.gradle.kts settings.gradle.kts ./
@@ -6,7 +6,7 @@ COPY src/ src/
 
 RUN gradle bootJar --no-daemon
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar

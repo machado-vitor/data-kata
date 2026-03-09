@@ -1,16 +1,16 @@
 plugins {
-    id("org.springframework.boot") version "3.2.5"
-    id("io.spring.dependency-management") version "1.1.4"
-    kotlin("jvm") version "1.9.23"
-    kotlin("plugin.spring") version "1.9.23"
+    id("org.springframework.boot") version "3.5.11"
+    id("io.spring.dependency-management") version "1.1.7"
+    kotlin("jvm") version "2.3.10"
+    kotlin("plugin.spring") version "2.3.10"
 }
 
 group = "com.datakata"
 version = "0.1.0"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 repositories {
@@ -27,10 +27,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 
     // ClickHouse JDBC driver
-    implementation("com.clickhouse:clickhouse-jdbc:0.6.0:all")
+    implementation("com.clickhouse:clickhouse-jdbc:0.9.7:all")
 
     // Kafka client for health check
-    implementation("org.apache.kafka:kafka-clients:3.7.0")
+    implementation("org.apache.kafka:kafka-clients:4.2.0")
 
     // Micrometer Prometheus registry
     implementation("io.micrometer:micrometer-registry-prometheus")
@@ -41,7 +41,7 @@ dependencies {
 kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xjsr305=strict")
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
     }
 }
 

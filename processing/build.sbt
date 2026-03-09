@@ -1,9 +1,9 @@
 ThisBuild / version := "0.1.0"
-ThisBuild / scalaVersion := "3.3.3"
+ThisBuild / scalaVersion := "3.8.2"
 ThisBuild / organization := "com.datakata"
 
-val flinkVersion = "1.19.1"
-val jacksonVersion = "2.15.3"
+val flinkVersion = "2.2.0"
+val jacksonVersion = "2.21.1"
 
 lazy val root = (project in file("."))
   .settings(
@@ -14,12 +14,12 @@ lazy val root = (project in file("."))
       "org.apache.flink" % "flink-clients" % flinkVersion % "provided",
       "org.apache.flink" % "flink-runtime-web" % flinkVersion % "provided",
 
-      // Flink Kafka connector (3.2.0-1.19 for Flink 1.19.x)
-      "org.apache.flink" % "flink-connector-kafka" % "3.2.0-1.19",
+      // Flink Kafka connector
+      "org.apache.flink" % "flink-connector-kafka" % "4.0.1-2.0",
 
-      // Flink JDBC connector (3.2.0-1.19 for Flink 1.19.x) + ClickHouse JDBC
-      "org.apache.flink" % "flink-connector-jdbc" % "3.2.0-1.19",
-      "com.clickhouse" % "clickhouse-jdbc" % "0.6.0" classifier "all",
+      // Flink JDBC connector + ClickHouse JDBC
+      "org.apache.flink" % "flink-connector-jdbc" % "4.0.0-2.0",
+      "com.clickhouse" % "clickhouse-jdbc" % "0.9.7" classifier "all",
 
       // JSON parsing
       "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
@@ -29,8 +29,8 @@ lazy val root = (project in file("."))
       "org.apache.flink" % "flink-metrics-prometheus" % flinkVersion,
 
       // Logging
-      "org.slf4j" % "slf4j-api" % "2.0.12",
-      "ch.qos.logback" % "logback-classic" % "1.4.14"
+      "org.slf4j" % "slf4j-api" % "2.0.17",
+      "ch.qos.logback" % "logback-classic" % "1.5.24"
     ),
 
     // Assembly settings for fat JAR
