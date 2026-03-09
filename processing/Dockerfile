@@ -8,10 +8,10 @@ RUN sbt update
 COPY src/ src/
 RUN sbt assembly
 
-FROM flink:2.2.0-java21
+FROM flink:1.20.3-java21
 
 # Copy the fat JAR to Flink's usrlib directory
-COPY --from=builder /app/target/scala-3/data-kata-processing.jar /opt/flink/usrlib/data-kata-processing.jar
+COPY --from=builder /app/target/scala-3.8.2/data-kata-processing.jar /opt/flink/usrlib/data-kata-processing.jar
 
 # Enable Flink metrics prometheus reporter (already bundled, just needs plugin dir)
 RUN mkdir -p /opt/flink/plugins/metrics-prometheus && \

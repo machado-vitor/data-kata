@@ -2,7 +2,7 @@ ThisBuild / version := "0.1.0"
 ThisBuild / scalaVersion := "3.8.2"
 ThisBuild / organization := "com.datakata"
 
-val flinkVersion = "2.2.0"
+val flinkVersion = "1.20.3"
 val jacksonVersion = "2.21.1"
 
 lazy val root = (project in file("."))
@@ -15,10 +15,10 @@ lazy val root = (project in file("."))
       "org.apache.flink" % "flink-runtime-web" % flinkVersion % "provided",
 
       // Flink Kafka connector
-      "org.apache.flink" % "flink-connector-kafka" % "4.0.1-2.0",
+      "org.apache.flink" % "flink-connector-kafka" % "3.4.0-1.20",
 
       // Flink JDBC connector + ClickHouse JDBC
-      "org.apache.flink" % "flink-connector-jdbc" % "4.0.0-2.0",
+      "org.apache.flink" % "flink-connector-jdbc" % "3.3.0-1.20",
       "com.clickhouse" % "clickhouse-jdbc" % "0.9.7" classifier "all",
 
       // JSON parsing
