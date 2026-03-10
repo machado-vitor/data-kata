@@ -1,4 +1,4 @@
-FROM sbtscala/scala-sbt:eclipse-temurin-noble-21_1.12.4_3.8.2 AS builder
+FROM sbtscala/scala-sbt:eclipse-temurin-17.0.15_6_1.12.5_3.8.2 AS builder
 
 WORKDIR /app
 COPY build.sbt .
@@ -8,7 +8,7 @@ RUN sbt update
 COPY src/ src/
 RUN sbt assembly
 
-FROM flink:1.20.3-java21
+FROM flink:1.20.3-java17
 
 # Copy the fat JAR to Flink's usrlib directory
 COPY --from=builder /app/target/scala-3.8.2/data-kata-processing.jar /opt/flink/usrlib/data-kata-processing.jar

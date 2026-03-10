@@ -103,7 +103,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      CLUSTER_ID: "dGF0YS1rYXRhLWthZmthLWNsdXN0ZXI"
+      CLUSTER_ID: "zK8RBUuJSuGfoBbgxlu6nw"
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -362,7 +362,7 @@ services:
       marquez-db:
         condition: service_healthy
     ports:
-      - "5000:5000"
+      - "5002:5000"
       - "5001:5001"
     environment:
       MARQUEZ_PORT: 5000
