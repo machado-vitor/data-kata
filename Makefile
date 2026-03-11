@@ -35,17 +35,17 @@ submit-flink-jobs: ## Submit Flink jobs via REST API
 		-F "jarfile=@processing-jar" 2>/dev/null || true
 	@echo "Submitting Flink jobs via docker exec..."
 	@docker exec datakata-flink-jobmanager flink run -d \
-		/opt/flink/usrlib/data-kata-processing.jar \
-		--class com.datakata.flink.NormalizationJob 2>/dev/null || \
+		-c com.datakata.flink.NormalizationJob \
+		/opt/flink/usrlib/data-kata-processing.jar 2>/dev/null || \
 		echo "NormalizationJob submission (may need manual start via Flink UI)"
 	@sleep 5
 	@docker exec datakata-flink-jobmanager flink run -d \
-		/opt/flink/usrlib/data-kata-processing.jar \
-		--class com.datakata.flink.TopSalesCityJob 2>/dev/null || \
+		-c com.datakata.flink.TopSalesCityJob \
+		/opt/flink/usrlib/data-kata-processing.jar 2>/dev/null || \
 		echo "TopSalesCityJob submission (may need manual start via Flink UI)"
 	@docker exec datakata-flink-jobmanager flink run -d \
-		/opt/flink/usrlib/data-kata-processing.jar \
-		--class com.datakata.flink.TopSalesmanCountryJob 2>/dev/null || \
+		-c com.datakata.flink.TopSalesmanCountryJob \
+		/opt/flink/usrlib/data-kata-processing.jar 2>/dev/null || \
 		echo "TopSalesmanCountryJob submission (may need manual start via Flink UI)"
 	@echo "Flink jobs submitted."
 

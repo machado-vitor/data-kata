@@ -10,6 +10,9 @@ RUN sbt assembly
 
 FROM flink:1.20.3-java17
 
+# Remove Flink's bundled Scala 2.12 to avoid conflict with Scala 3 lambdas
+RUN rm -f /opt/flink/lib/flink-scala_2.12-*.jar
+
 # Copy the fat JAR to Flink's usrlib directory
 COPY --from=builder /app/target/scala-3.8.2/data-kata-processing.jar /opt/flink/usrlib/data-kata-processing.jar
 

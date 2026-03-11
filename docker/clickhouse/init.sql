@@ -1,6 +1,8 @@
 -- ClickHouse init: Result tables for Data Kata
 
-CREATE TABLE IF NOT EXISTS top_sales_city (
+CREATE DATABASE IF NOT EXISTS datakata;
+
+CREATE TABLE IF NOT EXISTS datakata.top_sales_city (
     window_start DateTime,
     window_end   DateTime,
     city         String,
@@ -11,7 +13,7 @@ CREATE TABLE IF NOT EXISTS top_sales_city (
 ) ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (window_start, rank);
 
-CREATE TABLE IF NOT EXISTS top_salesman_country (
+CREATE TABLE IF NOT EXISTS datakata.top_salesman_country (
     window_start    DateTime,
     window_end      DateTime,
     salesman_name   String,
