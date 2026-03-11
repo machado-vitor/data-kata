@@ -10,8 +10,12 @@ volumes:
   marquez-db-data:
   grafana-data:
   prometheus-data:
-  spooldir-finished:
-  spooldir-error:
+  nifi-conf:
+  nifi-state:
+  nifi-db:
+  nifi-flowfile:
+  nifi-content:
+  nifi-provenance:
 
 services:
 
@@ -137,12 +141,12 @@ services:
     networks:
       - datakata
 
-  # ─── Kafka Connect (Debezium + S3) ────────────────────────────────
-  kafka-connect:
+  # ─── Apache NiFi (Ingestion Orchestrator) ─────────────────────────
+  nifi:
     build:
-      context: ./docker/kafka-connect
+      context: ./docker/nifi
       dockerfile: Dockerfile
-    container_name: datakata-kafka-connect
+    container_name: datakata-nifi
     depends_on:
       kafka:
         condition: service_healthy
@@ -151,32 +155,25 @@ services:
       minio:
         condition: service_healthy
     ports:
-      - "8083:8083"
+      - "8443:8443"
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
-      CONNECT_REST_PORT: 8083
-      CONNECT_GROUP_ID: datakata-connect
-      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
-      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
-      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
-      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+      SINGLE_USER_CREDENTIALS_USERNAME: admin
+      SINGLE_USER_CREDENTIALS_PASSWORD: datakata12345678
+      NIFI_JVM_HEAP_INIT: 512m
+      NIFI_JVM_HEAP_MAX: 1g
     volumes:
-      - ./docker/minio/seed-data:/data/spooldir/input
-      - spooldir-finished:/data/spooldir/finished
-      - spooldir-error:/data/spooldir/error
+      - nifi-conf:/opt/nifi/nifi-current/conf
+      - nifi-state:/opt/nifi/nifi-current/state
+      - nifi-db:/opt/nifi/nifi-current/database_repository
+      - nifi-flowfile:/opt/nifi/nifi-current/flowfile_repository
+      - nifi-content:/opt/nifi/nifi-current/content_repository
+      - nifi-provenance:/opt/nifi/nifi-current/provenance_repository
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8083/connectors || exit 1"]
+      test: ["CMD-SHELL", "curl -sk https://localhost:8443/nifi-api/system-diagnostics || exit 1"]
       interval: 15s
       timeout: 10s
-      retries: 10
-      start_period: 60s
+      retries: 15
+      start_period: 90s
     networks:
       - datakata
 

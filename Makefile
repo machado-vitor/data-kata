@@ -1,7 +1,7 @@
-.PHONY: up down build deploy-connectors submit-flink-jobs seed-data logs status clean help
+.PHONY: up down build deploy-nifi-flow submit-flink-jobs seed-data logs status clean help
 
 FLINK_REST=http://localhost:8081
-CONNECT_REST=http://localhost:8083
+NIFI_URL=https://localhost:8443
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -9,8 +9,8 @@ help: ## Show this help
 up: build ## Start everything
 	docker compose up -d
 	@echo "Waiting for services to become healthy..."
-	@sleep 45
-	$(MAKE) deploy-connectors
+	@sleep 60
+	$(MAKE) deploy-nifi-flow
 	@sleep 15
 	$(MAKE) submit-flink-jobs
 	@sleep 5
@@ -26,20 +26,8 @@ down: ## Stop everything
 build: ## Build all images
 	docker compose build
 
-deploy-connectors: ## Deploy Kafka Connect connectors
-	@echo "Deploying Debezium PostgreSQL connector..."
-	@curl -s -o /dev/null -w "%{http_code}" -X POST $(CONNECT_REST)/connectors \
-		-H "Content-Type: application/json" \
-		-d @docker/kafka-connect/connectors/debezium-postgres.json || echo " (may already exist)"
-	@echo ""
-	@echo "Deploying S3/MinIO source connector..."
-	@curl -s -o /dev/null -w "%{http_code}" -X POST $(CONNECT_REST)/connectors \
-		-H "Content-Type: application/json" \
-		-d @docker/kafka-connect/connectors/s3-source-minio.json || echo " (may already exist)"
-	@echo ""
-	@echo "Connectors deployed. Checking status..."
-	@sleep 5
-	@curl -s $(CONNECT_REST)/connectors | jq . 2>/dev/null || curl -s $(CONNECT_REST)/connectors
+deploy-nifi-flow: ## Deploy NiFi ingestion flows via REST API
+	@bash docker/nifi/deploy-flow.sh
 
 submit-flink-jobs: ## Submit Flink jobs via REST API
 	@echo "Submitting NormalizationJob..."
@@ -72,6 +60,7 @@ seed-data: ## Generate and load test data
 status: ## Show service status and URLs
 	@echo ""
 	@echo "=== Service URLs ==="
+	@echo "  NiFi UI:         https://localhost:8443/nifi (admin/datakata12345678)"
 	@echo "  Grafana:         http://localhost:3000 (admin/admin)"
 	@echo "  Marquez UI:      http://localhost:3001"
 	@echo "  Flink UI:        http://localhost:8081"
@@ -91,8 +80,8 @@ logs: ## Follow all logs
 logs-flink: ## Follow Flink logs
 	docker compose logs -f flink-jobmanager flink-taskmanager
 
-logs-kafka: ## Follow Kafka + Connect logs
-	docker compose logs -f kafka kafka-connect
+logs-nifi: ## Follow NiFi logs
+	docker compose logs -f nifi
 
 clean: down ## Remove everything including images
 	docker compose down -v --rmi all
