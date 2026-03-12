@@ -10,13 +10,6 @@ volumes:
   marquez-db-data:
   grafana-data:
   prometheus-data:
-  nifi-conf:
-  nifi-state:
-  nifi-db:
-  nifi-flowfile:
-  nifi-content:
-  nifi-provenance:
-
 services:
 
   # ─── PostgreSQL (Source DB) ────────────────────────────────────────
@@ -141,39 +134,55 @@ services:
     networks:
       - datakata
 
-  # ─── Apache NiFi (Ingestion Orchestrator) ─────────────────────────
-  nifi:
+  # ─── PG Producer (PostgreSQL → Kafka) ──────────────────────────────
+  pg-producer:
     build:
-      context: ./docker/nifi
+      context: ./pg-producer
       dockerfile: Dockerfile
-    container_name: datakata-nifi
+    container_name: datakata-pg-producer
     depends_on:
       kafka:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_healthy
-    ports:
-      - "8443:8443"
     environment:
-      SINGLE_USER_CREDENTIALS_USERNAME: admin
-      SINGLE_USER_CREDENTIALS_PASSWORD: datakata12345678
-      NIFI_JVM_HEAP_INIT: 512m
-      NIFI_JVM_HEAP_MAX: 1g
-    volumes:
-      - nifi-conf:/opt/nifi/nifi-current/conf
-      - nifi-state:/opt/nifi/nifi-current/state
-      - nifi-db:/opt/nifi/nifi-current/database_repository
-      - nifi-flowfile:/opt/nifi/nifi-current/flowfile_repository
-      - nifi-content:/opt/nifi/nifi-current/content_repository
-      - nifi-provenance:/opt/nifi/nifi-current/provenance_repository
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/datakata
+      POSTGRES_USER: datakata
+      POSTGRES_PASSWORD: datakata
     healthcheck:
-      test: ["CMD-SHELL", "curl -sk -o /dev/null -w '%{http_code}' https://localhost:8443/nifi-api/system-diagnostics | grep -qE '(200|401)' || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8092' || exit 1"]
       interval: 15s
       timeout: 10s
-      retries: 15
-      start_period: 90s
+      retries: 10
+      start_period: 30s
+    networks:
+      - datakata
+
+  # ─── Files Producer (MinIO CSV → Kafka) ──────────────────────────
+  files-producer:
+    build:
+      context: ./files-producer
+      dockerfile: Dockerfile
+    container_name: datakata-files-producer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: sales-data
+      MINIO_PREFIX: "topics/sales.files/"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8093' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     networks:
       - datakata
 

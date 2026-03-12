@@ -1,7 +1,6 @@
-.PHONY: up down build deploy-nifi-flow submit-flink-jobs seed-data logs status clean help
+.PHONY: up down build submit-flink-jobs seed-data logs status clean help
 
 FLINK_REST=http://localhost:8081
-NIFI_URL=https://localhost:8443
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -9,9 +8,7 @@ help: ## Show this help
 up: build ## Start everything
 	docker compose up -d
 	@echo "Waiting for services to become healthy..."
-	@sleep 60
-	$(MAKE) deploy-nifi-flow
-	@sleep 15
+	@sleep 45
 	$(MAKE) submit-flink-jobs
 	@sleep 5
 	$(MAKE) seed-data
@@ -26,14 +23,8 @@ down: ## Stop everything
 build: ## Build all images
 	docker compose build
 
-deploy-nifi-flow: ## Deploy NiFi ingestion flows via REST API
-	@bash docker/nifi/deploy-flow.sh
-
 submit-flink-jobs: ## Submit Flink jobs via REST API
-	@echo "Submitting NormalizationJob..."
-	@curl -s -X POST "$(FLINK_REST)/jars/upload" \
-		-F "jarfile=@processing-jar" 2>/dev/null || true
-	@echo "Submitting Flink jobs via docker exec..."
+	@echo "Submitting Flink jobs..."
 	@docker exec datakata-flink-jobmanager flink run -d \
 		-c com.datakata.flink.NormalizationJob \
 		/opt/flink/usrlib/data-kata-processing.jar 2>/dev/null || \
@@ -60,7 +51,6 @@ seed-data: ## Generate and load test data
 status: ## Show service status and URLs
 	@echo ""
 	@echo "=== Service URLs ==="
-	@echo "  NiFi UI:         https://localhost:8443/nifi (admin/datakata12345678)"
 	@echo "  Grafana:         http://localhost:3000 (admin/admin)"
 	@echo "  Marquez UI:      http://localhost:3001"
 	@echo "  Flink UI:        http://localhost:8081"
@@ -80,8 +70,8 @@ logs: ## Follow all logs
 logs-flink: ## Follow Flink logs
 	docker compose logs -f flink-jobmanager flink-taskmanager
 
-logs-nifi: ## Follow NiFi logs
-	docker compose logs -f nifi
+logs-producers: ## Follow producer logs
+	docker compose logs -f pg-producer files-producer ws-producer
 
 clean: down ## Remove everything including images
 	docker compose down -v --rmi all

@@ -1,0 +1,16 @@
+server:
+  port: 8092
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+postgres:
+  url: ${POSTGRES_URL:jdbc:postgresql://postgres:5432/datakata}
+  username: ${POSTGRES_USER:datakata}
+  password: ${POSTGRES_PASSWORD:datakata}
