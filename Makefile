@@ -1,4 +1,4 @@
-.PHONY: up down build submit-flink-jobs seed-data logs status clean help
+.PHONY: up down build submit-flink-jobs logs status clean help
 
 FLINK_REST=http://localhost:8081
 
@@ -10,8 +10,6 @@ up: build ## Start everything
 	@echo "Waiting for services to become healthy..."
 	@sleep 45
 	$(MAKE) submit-flink-jobs
-	@sleep 5
-	$(MAKE) seed-data
 	@echo ""
 	@echo "=== Data Kata is running! ==="
 	@echo ""
@@ -39,14 +37,6 @@ submit-flink-jobs: ## Submit Flink jobs via REST API
 		/opt/flink/usrlib/data-kata-processing.jar 2>/dev/null || \
 		echo "TopSalesmanCountryJob submission (may need manual start via Flink UI)"
 	@echo "Flink jobs submitted."
-
-seed-data: ## Generate and load test data
-	@echo "Seeding PostgreSQL with additional data..."
-	@bash seed/generate-postgres-data.sh || echo "PostgreSQL seeding skipped (psql not available on host, data loaded via init.sql)"
-	@echo "Seeding MinIO with additional CSV files..."
-	@bash seed/generate-minio-files.sh || echo "MinIO seeding skipped (mc not available on host, files loaded via minio-init)"
-	@echo "Triggering SOAP service..."
-	@bash seed/generate-soap-data.sh || echo "SOAP trigger skipped (service may still be starting)"
 
 status: ## Show service status and URLs
 	@echo ""
