@@ -46,7 +46,6 @@ status: ## Show service status and URLs
 	@echo "  Flink UI:        http://localhost:8081"
 	@echo "  Results API:     http://localhost:8080/api/v1/sales/top-by-city"
 	@echo "  MinIO Console:   http://localhost:9001 (minioadmin/minioadmin)"
-	@echo "  Schema Registry: http://localhost:8085"
 	@echo "  SOAP WSDL:       http://localhost:8090/ws/sales?wsdl"
 	@echo "  ClickHouse:      http://localhost:8123"
 	@echo "  Prometheus:      http://localhost:9090"

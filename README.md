@@ -61,7 +61,6 @@ A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sa
 | File System Source | MinIO (S3-compatible) | - |
 | WS-* Source | Apache CXF SOAP Service | Java 25 |
 | Message Broker | Apache Kafka (KRaft) | - |
-| Schema Registry | Confluent Schema Registry | - |
 | Ingestion - DB | Custom Spring Boot Producer | Java 25 |
 | Ingestion - Files | Custom Spring Boot Producer | Java 25 |
 | Ingestion - SOAP | Custom Spring Boot Producer | Java 25 |
@@ -92,7 +91,6 @@ This will:
 1. Build all Docker images (producers, SOAP service, Flink jobs, Results API)
 2. Start all infrastructure (Kafka, PostgreSQL, MinIO, ClickHouse, etc.)
 3. Submit Flink processing jobs
-4. Seed additional test data
 
 ## Service URLs
 
@@ -103,7 +101,6 @@ This will:
 | Flink UI | http://localhost:8081 | - |
 | Results API | http://localhost:8080/api/v1 | - |
 | MinIO Console | http://localhost:9001 | minioadmin / minioadmin |
-| Schema Registry | http://localhost:8085 | - |
 | SOAP WSDL | http://localhost:8090/ws/sales?wsdl | - |
 | ClickHouse | http://localhost:8123 | datakata / datakata |
 | Prometheus | http://localhost:9090 | - |
@@ -132,7 +129,6 @@ make up                 Start everything
 make down               Stop everything
 make build              Build all images
 make submit-flink-jobs  Submit Flink jobs
-make seed-data          Generate and load test data
 make status             Show service status and URLs
 make logs               Follow all logs
 make logs-flink         Follow Flink logs
