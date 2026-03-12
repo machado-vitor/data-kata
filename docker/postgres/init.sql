@@ -1,6 +1,4 @@
 -- PostgreSQL init: schema + seed data for Data Kata
--- Enable logical replication for Debezium CDC
-ALTER SYSTEM SET wal_level = logical;
 
 CREATE TABLE salesman (
     id          BIGSERIAL PRIMARY KEY,
@@ -21,9 +19,6 @@ CREATE TABLE sales (
     sale_date   TIMESTAMP NOT NULL DEFAULT NOW(),
     created_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
-
--- Create publication for Debezium
-CREATE PUBLICATION debezium_pub FOR TABLE sales;
 
 -- Seed salesmen across major Brazilian cities
 INSERT INTO salesman (name, city, region, active) VALUES

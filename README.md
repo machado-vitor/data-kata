@@ -1,16 +1,16 @@
 # Data Kata
 
-A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sales data from three heterogeneous sources (PostgreSQL CDC, CSV files on MinIO, SOAP WS-* service), processes streams through Apache Flink, stores results in ClickHouse, and serves them via a REST API.
+A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sales data from three heterogeneous sources (PostgreSQL, CSV files on MinIO, SOAP WS-* service), processes streams through Apache Flink, stores results in ClickHouse, and serves them via a REST API.
 
 ## Architecture
 
 ```
  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
  │  PostgreSQL   │    │    MinIO      │    │ SOAP Service │
- │  (CDC Source) │    │ (S3 Files)   │    │  (WS-* API)  │
+ │  (Source DB)  │    │ (S3 Files)   │    │  (WS-* API)  │
  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
-        │ Debezium          │ SpoolDir          │ CXF Client
-        ▼                   ▼                   ▼
+        │ pg-producer        │ files-producer    │ ws-producer
+        ▼                    ▼                   ▼
  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
  │sales.postgres│    │ sales.files  │    │ sales.legacy │
  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
@@ -59,13 +59,13 @@ A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sa
 |---|---|---|
 | Relational DB Source | PostgreSQL 16 | SQL |
 | File System Source | MinIO (S3-compatible) | - |
-| WS-* Source | Apache CXF SOAP Service | Java 21 |
+| WS-* Source | Apache CXF SOAP Service | Java 25 |
 | Message Broker | Apache Kafka (KRaft) | - |
 | Schema Registry | Confluent Schema Registry | - |
-| Ingestion - CDC | Debezium PostgreSQL Connector | - |
-| Ingestion - Files | SpoolDir Source Connector | - |
-| Ingestion - SOAP | Custom Kafka Producer (CXF) | Java 21 |
-| Stream Processing | Apache Flink 1.19+ | Scala 3 |
+| Ingestion - DB | Custom Spring Boot Producer | Java 25 |
+| Ingestion - Files | Custom Spring Boot Producer | Java 25 |
+| Ingestion - SOAP | Custom Spring Boot Producer | Java 25 |
+| Stream Processing | Apache Flink 1.20 | Scala 3 |
 | Data Lineage | OpenLineage + Marquez | - |
 | Observability | Prometheus + Grafana | - |
 | Results Database | ClickHouse | - |
@@ -89,11 +89,10 @@ make up
 ```
 
 This will:
-1. Build all Docker images (SOAP service, WS producer, Flink jobs, Results API)
+1. Build all Docker images (producers, SOAP service, Flink jobs, Results API)
 2. Start all infrastructure (Kafka, PostgreSQL, MinIO, ClickHouse, etc.)
-3. Deploy Kafka Connect connectors (Debezium CDC + SpoolDir)
-4. Submit Flink processing jobs
-5. Seed additional test data
+3. Submit Flink processing jobs
+4. Seed additional test data
 
 ## Service URLs
 
@@ -132,21 +131,20 @@ curl http://localhost:8080/api/v1/health
 make up                 Start everything
 make down               Stop everything
 make build              Build all images
-make deploy-connectors  Deploy Kafka Connect connectors
 make submit-flink-jobs  Submit Flink jobs
 make seed-data          Generate and load test data
 make status             Show service status and URLs
 make logs               Follow all logs
 make logs-flink         Follow Flink logs
-make logs-kafka         Follow Kafka + Connect logs
+make logs-producers     Follow producer logs
 make clean              Remove everything including images
 ```
 
 ## Data Flow
 
-1. **PostgreSQL CDC**: Sales inserted into PostgreSQL are captured by Debezium and published to `sales.postgres` Kafka topic
-2. **MinIO Files**: CSV files uploaded to MinIO `sales-data` bucket are read by SpoolDir connector and published to `sales.files` topic
-3. **SOAP Service**: The WS producer polls the SOAP service every 30 seconds and publishes to `sales.legacy` topic
+1. **PostgreSQL**: The `pg-producer` polls the sales table every 10 seconds (incremental by max id) and publishes to `sales.postgres` Kafka topic
+2. **MinIO Files**: The `files-producer` lists MinIO bucket every 30 seconds, reads new CSV files, and publishes rows to `sales.files` topic
+3. **SOAP Service**: The `ws-producer` polls the SOAP service every 30 seconds and publishes to `sales.legacy` topic
 4. **Normalization**: Flink `NormalizationJob` consumes all 3 topics, normalizes schemas, and produces to `sales.unified`
 5. **Analytics**: Two Flink jobs consume `sales.unified`:
    - `TopSalesCityJob`: 1-hour tumbling windows, ranks top 10 cities by total sales

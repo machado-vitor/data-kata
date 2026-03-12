@@ -20,22 +20,7 @@ class SalesEventDeserializationSchema extends DeserializationSchema[SalesEvent]:
   override def deserialize(message: Array[Byte]): SalesEvent =
     val json = mapper.readTree(message)
 
-    // Handle Debezium CDC envelope: extract the "after" payload for insert/update events
-    val payload = if json.has("after") && !json.get("after").isNull then
-      val op = if json.has("op") then json.get("op").asText("c") else "c"
-      if op == "d" then
-        // Delete event - use "before" or skip
-        logger.debug("Skipping delete CDC event")
-        return null
-      json.get("after")
-    else if json.has("payload") && json.get("payload").has("after") then
-      // Nested envelope from some connect configurations
-      val innerPayload = json.get("payload")
-      val op = if innerPayload.has("op") then innerPayload.get("op").asText("c") else "c"
-      if op == "d" then return null
-      innerPayload.get("after")
-    else
-      json
+    val payload = json
 
     SalesEvent(
       saleId = getStringField(payload, "saleId", "sale_id", "id"),
@@ -87,7 +72,6 @@ class SalesEventDeserializationSchema extends DeserializationSchema[SalesEvent]:
                 System.currentTimeMillis()
         else if node.isLong || node.isInt then
           val ts = node.asLong(0L)
-          // Debezium may send timestamps as microseconds
           if ts > 1_000_000_000_000_000L then ts / 1000  // microseconds to millis
           else if ts > 1_000_000_000_000L then ts         // already millis
           else ts * 1000                                   // seconds to millis
