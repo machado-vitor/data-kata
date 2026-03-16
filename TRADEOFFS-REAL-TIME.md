@@ -33,6 +33,24 @@ You end up solving problems that windows already solve: time boundaries, bounded
 
 ---
 
+# Flink vs Kafka Streams
+
+Flink is a **cluster**. Kafka Streams is a **library**.
+
+Flink needs its own infrastructure (jobmanager, taskmanagers). Kafka Streams runs inside any JVM app — no extra cluster, no extra deployment.
+
+Flink is source-agnostic — reads from Kafka, JDBC, files, anything. Kafka Streams is Kafka-in, Kafka-out only. Writing to a database requires custom code.
+
+Flink has richer windowing, watermarks, and late data handling. Kafka Streams covers the basics (tumbling, sliding, session) but with less flexibility.
+
+Flink gives you a UI, savepoints, and managed checkpointing. Kafka Streams gives you nothing — monitoring is your problem.
+
+Flink scales by configuring parallelism. Kafka Streams scales by running more app instances — Kafka rebalances partitions automatically.
+
+**Pick Flink** when you need complex event processing, multi-source joins, or advanced windowing. **Pick Kafka Streams** when your input and output are both Kafka and you want simpler ops.
+
+---
+
 # Why Not Spark
 
 Spark depends on the Hadoop ecosystem (`hadoop-client` is a transitive dependency of `spark-core`). The project has a hard restriction against Hadoop. Spark is out.
