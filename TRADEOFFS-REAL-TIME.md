@@ -30,3 +30,9 @@ Global windows never close. Flink state grows unbounded. You'd need to add manua
 ## Bottom line
 
 You end up solving problems that windows already solve: time boundaries, bounded state, clean replay, controlled write volume. If sub-second freshness isn't a hard requirement, shorter tumbling windows (e.g., 5 minutes) give near real-time without any of these costs.
+
+---
+
+# Why Not Spark
+
+Spark depends on the Hadoop ecosystem (`hadoop-client` is a transitive dependency of `spark-core`). The project has a hard restriction against Hadoop. Spark is out.
