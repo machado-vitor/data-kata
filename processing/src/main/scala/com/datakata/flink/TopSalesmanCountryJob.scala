@@ -97,9 +97,9 @@ object TopSalesmanCountryJob:
 
     import org.apache.flink.api.common.state.{ValueState, ValueStateDescriptor}
 
-    @transient private lazy val bufferState: ValueState[java.util.ArrayList[String]] =
+    @transient private lazy val bufferState: ValueState[util.ArrayList[String]] =
       getRuntimeContext.getState(
-        new ValueStateDescriptor[java.util.ArrayList[String]]("salesman-buffer", classOf[java.util.ArrayList[String]])
+        new ValueStateDescriptor[util.ArrayList[String]]("salesman-buffer", classOf[util.ArrayList[String]])
       )
 
     override def processElement(
@@ -108,7 +108,7 @@ object TopSalesmanCountryJob:
         out: Collector[SalesmanResult]
     ): Unit =
       var buf = bufferState.value()
-      if buf == null then buf = new java.util.ArrayList[String]()
+      if buf == null then buf = new util.ArrayList[String]()
       buf.add(s"${value._3}|${value._4}|${value._5}|${value._6}")
       bufferState.update(buf)
       ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 2000)

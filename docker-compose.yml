@@ -209,6 +209,7 @@ services:
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - ./docker/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/clickhouse/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml
     environment:
       CLICKHOUSE_DB: datakata
       CLICKHOUSE_USER: datakata

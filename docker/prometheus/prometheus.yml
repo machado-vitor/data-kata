@@ -17,12 +17,12 @@ scrape_configs:
 
   - job_name: "flink-taskmanager"
     static_configs:
-      - targets: ["datakata-flink-taskmanager-1:9249", "datakata-flink-taskmanager-2:9249"]
+      - targets: ["data-kata-flink-taskmanager-1:9249", "data-kata-flink-taskmanager-2:9249"]
     metrics_path: /
 
   - job_name: "clickhouse"
     static_configs:
-      - targets: ["clickhouse:8123"]
+      - targets: ["clickhouse:9363"]
     metrics_path: /metrics
 
   - job_name: "results-api"
