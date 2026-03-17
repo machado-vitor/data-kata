@@ -40,7 +40,7 @@ object TopSalesmanCountryJob:
       .setBootstrapServers(kafkaBootstrap)
       .setTopics("sales.unified")
       .setGroupId("flink-top-salesman-country")
-      .setStartingOffsets(OffsetsInitializer.earliest())
+      .setStartingOffsets(OffsetsInitializer.committedOffsets(org.apache.kafka.clients.consumer.OffsetResetStrategy.EARLIEST))
       .setValueOnlyDeserializer(new SalesEventDeserializationSchema())
       .build()
 
@@ -64,7 +64,8 @@ object TopSalesmanCountryJob:
       .name("ClickHouse Sink: top_salesman_country")
 
     LineageEmitter.emit(marquezUrl, "TopSalesmanCountryJob",
-      List("sales.unified"), List("top_salesman_country"))
+      List(Schemas.kafkaUnified),
+      List(Schemas.clickhouseTopSalesman))
 
     logger.info("Starting TopSalesmanCountryJob - 1h tumbling windows, top 10 salesmen, BR only")
     env.execute("TopSalesmanCountryJob")
@@ -98,9 +99,16 @@ object TopSalesmanCountryJob:
 
     import org.apache.flink.api.common.state.{ValueState, ValueStateDescriptor}
 
-    @transient private lazy val bufferState: ValueState[util.ArrayList[String]] =
+    // Typed buffer: salesmanName -> (windowEnd, country, totalSales, txCount)
+    @transient private lazy val bufferState: ValueState[util.HashMap[String, (String, String, Double, Long)]] =
       getRuntimeContext.getState(
-        new ValueStateDescriptor[util.ArrayList[String]]("salesman-buffer", classOf[util.ArrayList[String]])
+        new ValueStateDescriptor[util.HashMap[String, (String, String, Double, Long)]](
+          "salesman-buffer", classOf[util.HashMap[String, (String, String, Double, Long)]])
+      )
+
+    @transient private lazy val timerRegistered: ValueState[java.lang.Boolean] =
+      getRuntimeContext.getState(
+        new ValueStateDescriptor[java.lang.Boolean]("timer-registered", classOf[java.lang.Boolean])
       )
 
     override def processElement(
@@ -109,10 +117,23 @@ object TopSalesmanCountryJob:
         out: Collector[SalesmanResult]
     ): Unit =
       var buf = bufferState.value()
-      if buf == null then buf = new util.ArrayList[String]()
-      buf.add(s"${value._3}|${value._4}|${value._5}|${value._6}")
+      if buf == null then buf = new util.HashMap[String, (String, String, Double, Long)]()
+      val name = value._3
+      val windowEnd = value._2
+      val country = value._4
+      val totalSales = value._5
+      val txCount = value._6
+      val existing = buf.get(name)
+      if existing != null then
+        buf.put(name, (windowEnd, country, existing._3 + totalSales, existing._4 + txCount))
+      else
+        buf.put(name, (windowEnd, country, totalSales, txCount))
       bufferState.update(buf)
-      ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 2000)
+
+      val registered = timerRegistered.value()
+      if registered == null || !registered then
+        ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 2000)
+        timerRegistered.update(java.lang.Boolean.TRUE)
 
     override def onTimer(
         timestamp: Long,
@@ -121,27 +142,18 @@ object TopSalesmanCountryJob:
     ): Unit =
       val buf = bufferState.value()
       if buf != null && !buf.isEmpty then
-        val salesmanMap = scala.collection.mutable.Map.empty[String, (String, Double, Long)]
-        buf.asScala.foreach { entry =>
-          val parts = entry.split("\\|")
-          val name = parts(0)
-          val country = parts(1)
-          val amount = parts(2).toDouble
-          val count = parts(3).toLong
-          val existing = salesmanMap.getOrElse(name, (country, 0.0, 0L))
-          salesmanMap(name) = (existing._1, existing._2 + amount, existing._3 + count)
-        }
+        val windowStart = ctx.getCurrentKey
+        // Grab windowEnd from the first entry (all entries share the same window)
+        val firstEntry = buf.values().iterator().next()
+        val windowEnd = firstEntry._1
 
-        val windowKey = ctx.getCurrentKey
-        val windowStart = windowKey
-        val windowEnd = try
-          val startInstant = Instant.from(dtf.parse(windowStart))
-          dtf.format(startInstant.plusSeconds(3600))
-        catch
-          case _: Exception => windowStart
-
-        val ranked = salesmanMap.toList.sortBy(-_._2._2).take(n)
-        ranked.zipWithIndex.foreach { case ((name, (country, total, count)), idx) =>
+        val ranked = buf.entrySet().asScala.toList
+          .sortBy(-_.getValue._3)
+          .take(n)
+        ranked.zipWithIndex.foreach { case (entry, idx) =>
+          val name = entry.getKey
+          val (_, country, total, count) = entry.getValue
           out.collect((windowStart, windowEnd, name, country, total, count, idx + 1))
         }
-        bufferState.clear()
+      bufferState.clear()
+      timerRegistered.clear()

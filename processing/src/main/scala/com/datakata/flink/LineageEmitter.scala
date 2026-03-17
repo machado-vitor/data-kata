@@ -15,66 +15,34 @@ object LineageEmitter:
   private val logger = LoggerFactory.getLogger(getClass)
   private val mapper = new ObjectMapper()
 
-  case class Dataset(namespace: String, name: String, schema: List[(String, String)])
+  private val PRODUCER = "https://github.com/datakata/flink"
+  private val SCHEMA_FACET_URL = "https://openlineage.io/spec/facets/1-1-1/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet"
+  private val DATASOURCE_FACET_URL = "https://openlineage.io/spec/facets/1-0-1/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet"
+  private val RUN_EVENT_SCHEMA = "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  private val JOB_NAMESPACE = "data-kata"
 
-  private val salesEventSchema: List[(String, String)] = List(
-    ("saleId", "STRING"),
-    ("salesmanName", "STRING"),
-    ("city", "STRING"),
-    ("country", "STRING"),
-    ("amount", "DOUBLE"),
-    ("product", "STRING"),
-    ("eventTime", "LONG"),
-    ("source", "STRING"),
-    ("ingestionTime", "LONG")
+  case class Field(name: String, fieldType: String)
+  case class Dataset(namespace: String, name: String, fields: List[Field])
+
+  private val datasources: Map[String, String] = Map(
+    "kafka" -> "kafka://kafka:9092",
+    "clickhouse" -> "clickhouse://clickhouse:8123/datakata"
   )
 
-  private val topSalesCitySchema: List[(String, String)] = List(
-    ("window_start", "STRING"),
-    ("window_end", "STRING"),
-    ("city", "STRING"),
-    ("total_sales", "DOUBLE"),
-    ("transaction_count", "LONG"),
-    ("rank", "INTEGER")
-  )
-
-  private val topSalesmanCountrySchema: List[(String, String)] = List(
-    ("window_start", "STRING"),
-    ("window_end", "STRING"),
-    ("salesman_name", "STRING"),
-    ("country", "STRING"),
-    ("total_sales", "DOUBLE"),
-    ("transaction_count", "LONG"),
-    ("rank", "INTEGER")
-  )
-
-  def datasetsForJob(jobName: String): (List[Dataset], List[Dataset]) =
-    jobName match
-      case "NormalizationJob" =>
-        val inputs = List(
-          Dataset("kafka", "sales.postgres", salesEventSchema),
-          Dataset("kafka", "sales.files", salesEventSchema),
-          Dataset("kafka", "sales.legacy", salesEventSchema)
-        )
-        val outputs = List(
-          Dataset("kafka", "sales.unified", salesEventSchema)
-        )
-        (inputs, outputs)
-      case "TopSalesCityJob" =>
-        val inputs = List(Dataset("kafka", "sales.unified", salesEventSchema))
-        val outputs = List(Dataset("clickhouse", "top_sales_city", topSalesCitySchema))
-        (inputs, outputs)
-      case "TopSalesmanCountryJob" =>
-        val inputs = List(Dataset("kafka", "sales.unified", salesEventSchema))
-        val outputs = List(Dataset("clickhouse", "top_salesman_country", topSalesmanCountrySchema))
-        (inputs, outputs)
-      case _ => (List.empty, List.empty)
-
-  def emit(marquezUrl: String, jobName: String, inputs: List[String], outputs: List[String]): Unit =
-    val (inputDatasets, outputDatasets) = datasetsForJob(jobName)
+  def emit(marquezUrl: String, jobName: String, inputs: List[Dataset], outputs: List[Dataset]): Unit =
     val runId = UUID.randomUUID().toString
-    emitEvent(marquezUrl, jobName, "START", inputDatasets, outputDatasets, runId)
-    emitEvent(marquezUrl, jobName, "COMPLETE", inputDatasets, outputDatasets, runId)
+    emitEvent(marquezUrl, jobName, "START", inputs, outputs, runId)
+    emitEvent(marquezUrl, jobName, "COMPLETE", inputs, outputs, runId)
+
+  private def buildFieldsArray(fields: List[Field]): ArrayNode =
+    val arr = mapper.createArrayNode()
+    fields.foreach { f =>
+      val node = mapper.createObjectNode()
+      node.put("name", f.name)
+      node.put("type", f.fieldType)
+      arr.add(node)
+    }
+    arr
 
   private def buildDatasetNode(ds: Dataset): ObjectNode =
     val node = mapper.createObjectNode()
@@ -82,36 +50,29 @@ object LineageEmitter:
     node.put("name", ds.name)
 
     val facets = mapper.createObjectNode()
+
     val schemaFacet = mapper.createObjectNode()
-    schemaFacet.put("_producer", "https://github.com/datakata/flink")
-    schemaFacet.put("_schemaURL", "https://openlineage.io/spec/facets/1-1-1/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet")
-    val fields = mapper.createArrayNode()
-    ds.schema.foreach { case (name, fieldType) =>
-      val field = mapper.createObjectNode()
-      field.put("name", name)
-      field.put("type", fieldType)
-      fields.add(field)
-    }
-    schemaFacet.set("fields", fields)
+    schemaFacet.put("_producer", PRODUCER)
+    schemaFacet.put("_schemaURL", SCHEMA_FACET_URL)
+    schemaFacet.set("fields", buildFieldsArray(ds.fields))
     facets.set("schema", schemaFacet)
 
-    if ds.namespace == "kafka" then
+    datasources.get(ds.namespace).foreach { uri =>
       val sourceFacet = mapper.createObjectNode()
-      sourceFacet.put("_producer", "https://github.com/datakata/flink")
-      sourceFacet.put("_schemaURL", "https://openlineage.io/spec/facets/1-0-1/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet")
-      sourceFacet.put("name", "kafka")
-      sourceFacet.put("uri", "kafka://kafka:9092")
+      sourceFacet.put("_producer", PRODUCER)
+      sourceFacet.put("_schemaURL", DATASOURCE_FACET_URL)
+      sourceFacet.put("name", ds.namespace)
+      sourceFacet.put("uri", uri)
       facets.set("datasource", sourceFacet)
-    else if ds.namespace == "clickhouse" then
-      val sourceFacet = mapper.createObjectNode()
-      sourceFacet.put("_producer", "https://github.com/datakata/flink")
-      sourceFacet.put("_schemaURL", "https://openlineage.io/spec/facets/1-0-1/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet")
-      sourceFacet.put("name", "clickhouse")
-      sourceFacet.put("uri", "clickhouse://clickhouse:8123/datakata")
-      facets.set("datasource", sourceFacet)
+    }
 
     node.set("facets", facets)
     node
+
+  private def buildDatasetsArray(datasets: List[Dataset]): ArrayNode =
+    val arr = mapper.createArrayNode()
+    datasets.foreach(ds => arr.add(buildDatasetNode(ds)))
+    arr
 
   private def emitEvent(marquezUrl: String, jobName: String, eventType: String,
                         inputs: List[Dataset], outputs: List[Dataset], runId: String): Unit =
@@ -119,29 +80,29 @@ object LineageEmitter:
       val event = mapper.createObjectNode()
       event.put("eventType", eventType)
       event.put("eventTime", ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
-      event.put("producer", "https://github.com/datakata/flink")
-      event.put("schemaURL", "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent")
+      event.put("producer", PRODUCER)
+      event.put("schemaURL", RUN_EVENT_SCHEMA)
 
       val run = mapper.createObjectNode()
       run.put("runId", runId)
       event.set("run", run)
 
       val job = mapper.createObjectNode()
-      job.put("namespace", "data-kata")
+      job.put("namespace", JOB_NAMESPACE)
       job.put("name", jobName)
       event.set("job", job)
 
-      val inputsArray = mapper.createArrayNode()
-      inputs.foreach(ds => inputsArray.add(buildDatasetNode(ds)))
-      event.set("inputs", inputsArray)
+      event.set("inputs", buildDatasetsArray(inputs))
+      event.set("outputs", buildDatasetsArray(outputs))
 
-      val outputsArray = mapper.createArrayNode()
-      outputs.foreach(ds => outputsArray.add(buildDatasetNode(ds)))
-      event.set("outputs", outputsArray)
+      post(marquezUrl, mapper.writeValueAsString(event), eventType, jobName)
+    catch
+      case e: Exception =>
+        logger.warn("Failed to emit OpenLineage {} event for {}: {}", eventType, jobName, e.getMessage)
 
-      val jsonBody = mapper.writeValueAsString(event)
-      val url = URI.create(marquezUrl).toURL
-      val conn = url.openConnection().asInstanceOf[HttpURLConnection]
+  private def post(url: String, body: String, eventType: String, jobName: String): Unit =
+    val conn = URI.create(url).toURL.openConnection().asInstanceOf[HttpURLConnection]
+    try
       conn.setRequestMethod("POST")
       conn.setRequestProperty("Content-Type", "application/json")
       conn.setDoOutput(true)
@@ -149,17 +110,16 @@ object LineageEmitter:
       conn.setReadTimeout(5000)
 
       val os = conn.getOutputStream
-      os.write(jsonBody.getBytes(StandardCharsets.UTF_8))
-      os.flush()
-      os.close()
+      try
+        os.write(body.getBytes(StandardCharsets.UTF_8))
+        os.flush()
+      finally
+        os.close()
 
       val responseCode = conn.getResponseCode
-      conn.disconnect()
-
       if responseCode >= 200 && responseCode < 300 then
         logger.info("Emitted OpenLineage {} event for {} (HTTP {})", eventType, jobName, responseCode)
       else
-        logger.warn("OpenLineage event for {} returned HTTP {}", jobName, responseCode)
-    catch
-      case e: Exception =>
-        logger.warn("Failed to emit OpenLineage event for {}: {}", jobName, e.getMessage)
+        logger.warn("OpenLineage {} event for {} returned HTTP {}", eventType, jobName, responseCode)
+    finally
+      conn.disconnect()

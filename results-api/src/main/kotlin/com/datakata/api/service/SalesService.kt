@@ -17,10 +17,11 @@ class SalesService(
     private val isoFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
 
     fun getTopSalesByCity(window: String?, limit: Int): TopSalesCityResponse {
+        val safeLimit = limit.coerceIn(1, 100)
         val results = if (window == null || window == "latest") {
-            cityRepository.findLatest(limit)
+            cityRepository.findLatest(safeLimit)
         } else {
-            cityRepository.findByWindow(window, limit)
+            cityRepository.findByWindow(window, safeLimit)
         }
 
         if (results.isEmpty()) {
@@ -49,10 +50,11 @@ class SalesService(
     }
 
     fun getTopSalesmen(window: String?, country: String, limit: Int): TopSalesmanResponse {
+        val safeLimit = limit.coerceIn(1, 100)
         val results = if (window == null || window == "latest") {
-            salesmanRepository.findLatest(country, limit)
+            salesmanRepository.findLatest(country, safeLimit)
         } else {
-            salesmanRepository.findByWindow(window, country, limit)
+            salesmanRepository.findByWindow(window, country, safeLimit)
         }
 
         if (results.isEmpty()) {

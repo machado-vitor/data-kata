@@ -50,10 +50,15 @@ public class PollingScheduler {
                 }
             }
 
-            // Update the timestamp to now so the next poll picks up newer records
-            lastPollTimestamp = System.currentTimeMillis();
-            log.info("Poll complete. Sent {}/{} sales to Kafka. Updated lastPollTimestamp to {}",
-                    successCount, sales.size(), lastPollTimestamp);
+            if (successCount == sales.size()) {
+                // Update the timestamp to now so the next poll picks up newer records
+                lastPollTimestamp = System.currentTimeMillis();
+                log.info("Poll complete. Sent {}/{} sales to Kafka. Updated lastPollTimestamp to {}",
+                        successCount, sales.size(), lastPollTimestamp);
+            } else {
+                log.warn("Poll complete. Only {}/{} sales sent to Kafka. lastPollTimestamp NOT advanced.",
+                        successCount, sales.size());
+            }
 
         } catch (Exception e) {
             log.error("Error during SOAP polling cycle", e);

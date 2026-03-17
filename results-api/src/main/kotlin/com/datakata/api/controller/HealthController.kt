@@ -22,6 +22,14 @@ class HealthController(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    private val kafkaAdmin: AdminClient by lazy {
+        val props = Properties()
+        props[AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG] = kafkaBootstrap
+        props[AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG] = "5000"
+        props[AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG] = "5000"
+        AdminClient.create(props)
+    }
+
     data class HealthResponse(
         val status: String,
         val clickhouse: String,
@@ -50,13 +58,7 @@ class HealthController(
 
     private fun checkKafka(): String {
         return try {
-            val props = Properties()
-            props[AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG] = kafkaBootstrap
-            props[AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG] = "5000"
-            props[AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG] = "5000"
-            AdminClient.create(props).use { client ->
-                client.listTopics().names().get(5, TimeUnit.SECONDS)
-            }
+            kafkaAdmin.listTopics().names().get(5, TimeUnit.SECONDS)
             "UP"
         } catch (e: Exception) {
             logger.warn("Kafka health check failed: {}", e.message)

@@ -39,7 +39,7 @@ object TopSalesCityJob:
       .setBootstrapServers(kafkaBootstrap)
       .setTopics("sales.unified")
       .setGroupId("flink-top-sales-city")
-      .setStartingOffsets(OffsetsInitializer.earliest())
+      .setStartingOffsets(OffsetsInitializer.committedOffsets(org.apache.kafka.clients.consumer.OffsetResetStrategy.EARLIEST))
       .setValueOnlyDeserializer(new SalesEventDeserializationSchema())
       .build()
 
@@ -62,7 +62,8 @@ object TopSalesCityJob:
       .name("ClickHouse Sink: top_sales_city")
 
     LineageEmitter.emit(marquezUrl, "TopSalesCityJob",
-      List("sales.unified"), List("top_sales_city"))
+      List(Schemas.kafkaUnified),
+      List(Schemas.clickhouseTopCity))
 
     logger.info("Starting TopSalesCityJob - 1h tumbling windows, top 10 cities")
     env.execute("TopSalesCityJob")
@@ -96,9 +97,16 @@ object TopSalesCityJob:
 
     import org.apache.flink.api.common.state.{ValueState, ValueStateDescriptor}
 
-    @transient private lazy val bufferState: ValueState[java.util.ArrayList[String]] =
+    // Typed buffer: city -> (windowEnd, totalSales, txCount)
+    @transient private lazy val bufferState: ValueState[java.util.HashMap[String, (String, Double, Long)]] =
       getRuntimeContext.getState(
-        new ValueStateDescriptor[java.util.ArrayList[String]]("city-buffer", classOf[java.util.ArrayList[String]])
+        new ValueStateDescriptor[java.util.HashMap[String, (String, Double, Long)]](
+          "city-buffer", classOf[java.util.HashMap[String, (String, Double, Long)]])
+      )
+
+    @transient private lazy val timerRegistered: ValueState[java.lang.Boolean] =
+      getRuntimeContext.getState(
+        new ValueStateDescriptor[java.lang.Boolean]("timer-registered", classOf[java.lang.Boolean])
       )
 
     override def processElement(
@@ -107,10 +115,22 @@ object TopSalesCityJob:
         out: Collector[CityResult]
     ): Unit =
       var buf = bufferState.value()
-      if buf == null then buf = new java.util.ArrayList[String]()
-      buf.add(s"${value._3}|${value._4}|${value._5}")
+      if buf == null then buf = new java.util.HashMap[String, (String, Double, Long)]()
+      val city = value._3
+      val windowEnd = value._2
+      val totalSales = value._4
+      val txCount = value._5
+      val existing = buf.get(city)
+      if existing != null then
+        buf.put(city, (windowEnd, existing._2 + totalSales, existing._3 + txCount))
+      else
+        buf.put(city, (windowEnd, totalSales, txCount))
       bufferState.update(buf)
-      ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 2000)
+
+      val registered = timerRegistered.value()
+      if registered == null || !registered then
+        ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 2000)
+        timerRegistered.update(java.lang.Boolean.TRUE)
 
     override def onTimer(
         timestamp: Long,
@@ -119,26 +139,17 @@ object TopSalesCityJob:
     ): Unit =
       val buf = bufferState.value()
       if buf != null && !buf.isEmpty then
-        val cityMap = scala.collection.mutable.Map.empty[String, (Double, Long)]
-        buf.asScala.foreach { entry =>
-          val parts = entry.split("\\|")
-          val city = parts(0)
-          val amount = parts(1).toDouble
-          val count = parts(2).toLong
-          val existing = cityMap.getOrElse(city, (0.0, 0L))
-          cityMap(city) = (existing._1 + amount, existing._2 + count)
-        }
+        val windowStart = ctx.getCurrentKey
+        // Grab windowEnd from the first entry (all entries share the same window)
+        val windowEnd = buf.values().iterator().next()._1
 
-        val windowKey = ctx.getCurrentKey
-        val windowStart = windowKey
-        val windowEnd = try
-          val startInstant = Instant.from(dtf.parse(windowStart))
-          dtf.format(startInstant.plusSeconds(3600))
-        catch
-          case _: Exception => windowStart
-
-        val ranked = cityMap.toList.sortBy(-_._2._1).take(n)
-        ranked.zipWithIndex.foreach { case ((city, (total, count)), idx) =>
+        val ranked = buf.entrySet().asScala.toList
+          .sortBy(-_.getValue._2)
+          .take(n)
+        ranked.zipWithIndex.foreach { case (entry, idx) =>
+          val city = entry.getKey
+          val (_, total, count) = entry.getValue
           out.collect((windowStart, windowEnd, city, total, count, idx + 1))
         }
-        bufferState.clear()
+      bufferState.clear()
+      timerRegistered.clear()

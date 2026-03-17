@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 
 @Component
 public class KafkaProducerService {
@@ -40,12 +41,13 @@ public class KafkaProducerService {
         props.put(ProducerConfig.ACKS_CONFIG, "all");
         props.put(ProducerConfig.RETRIES_CONFIG, 3);
         props.put(ProducerConfig.LINGER_MS_CONFIG, 10);
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
 
         producer = new KafkaProducer<>(props);
         log.info("Kafka producer initialized. bootstrap.servers={}", bootstrapServers);
     }
 
-    public void sendSale(SoapClient.Sale sale) {
+    public void sendSale(SoapClient.Sale sale) throws ExecutionException, InterruptedException {
         try {
             ObjectNode json = objectMapper.createObjectNode();
             json.put("saleId", sale.getSaleId());
@@ -69,9 +71,10 @@ public class KafkaProducerService {
                     log.debug("Sale {} sent to topic {} partition {} offset {}",
                             sale.getSaleId(), metadata.topic(), metadata.partition(), metadata.offset());
                 }
-            });
+            }).get();
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize sale {} to JSON", sale.getSaleId(), e);
+            throw new RuntimeException("Failed to serialize sale to JSON", e);
         }
     }
 
@@ -81,7 +84,7 @@ public class KafkaProducerService {
             log.info("Flushing and closing Kafka producer...");
             try {
                 producer.flush();
-                producer.close();
+                producer.close(java.time.Duration.ofSeconds(10));
                 log.info("Kafka producer closed successfully.");
             } catch (Exception e) {
                 log.error("Error closing Kafka producer", e);

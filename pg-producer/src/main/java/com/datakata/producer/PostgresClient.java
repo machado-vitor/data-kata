@@ -47,7 +47,7 @@ public class PostgresClient {
     public List<Map<String, Object>> fetchNewSales(long lastMaxId) {
         List<Map<String, Object>> rows = new ArrayList<>();
         String sql = "SELECT id, salesman_id, salesman, city, country, amount, product, sale_date, created_at " +
-                     "FROM sales WHERE id > ? ORDER BY id";
+                     "FROM sales WHERE id > ? ORDER BY id LIMIT 10000";
 
         try {
             connect();
@@ -63,8 +63,10 @@ public class PostgresClient {
                         row.put("country", rs.getString("country"));
                         row.put("amount", rs.getBigDecimal("amount"));
                         row.put("product", rs.getString("product"));
-                        row.put("sale_date", rs.getTimestamp("sale_date").toInstant().toString());
-                        row.put("created_at", rs.getTimestamp("created_at").toInstant().toString());
+                        Timestamp saleDate = rs.getTimestamp("sale_date");
+                        row.put("sale_date", saleDate != null ? saleDate.toInstant().toString() : null);
+                        Timestamp createdAt = rs.getTimestamp("created_at");
+                        row.put("created_at", createdAt != null ? createdAt.toInstant().toString() : null);
                         rows.add(row);
                     }
                 }

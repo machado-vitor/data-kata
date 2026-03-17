@@ -34,7 +34,7 @@ object NormalizationJob:
         .setBootstrapServers(kafkaBootstrap)
         .setTopics(topic)
         .setGroupId(groupId)
-        .setStartingOffsets(OffsetsInitializer.earliest())
+        .setStartingOffsets(OffsetsInitializer.committedOffsets(org.apache.kafka.clients.consumer.OffsetResetStrategy.EARLIEST))
         .setValueOnlyDeserializer(new SalesEventDeserializationSchema())
         .build()
 
@@ -53,7 +53,6 @@ object NormalizationJob:
         filesSource.map((e: SalesEvent) => e.copy(source = "files")),
         legacySource.map((e: SalesEvent) => e.copy(source = "legacy"))
       )
-      .map((e: SalesEvent) => e.copy(ingestionTime = System.currentTimeMillis()))
 
     val kafkaSink = KafkaSink.builder[SalesEvent]()
       .setBootstrapServers(kafkaBootstrap)
@@ -68,8 +67,8 @@ object NormalizationJob:
     unified.sinkTo(kafkaSink).name("Kafka Sink: sales.unified")
 
     LineageEmitter.emit(marquezUrl, "NormalizationJob",
-      List("sales.postgres", "sales.files", "sales.legacy"),
-      List("sales.unified"))
+      List(Schemas.kafkaPostgres, Schemas.kafkaFiles, Schemas.kafkaLegacy),
+      List(Schemas.kafkaUnified))
 
     logger.info("Starting NormalizationJob - 3 sources -> sales.unified")
     env.execute("NormalizationJob")

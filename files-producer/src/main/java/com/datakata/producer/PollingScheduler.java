@@ -50,8 +50,12 @@ public class PollingScheduler {
                         }
                     }
 
-                    minioReader.markProcessed(fileKey);
-                    log.info("File {} processed: {}/{} rows sent to Kafka.", fileKey, successCount, rows.size());
+                    if (successCount == rows.size()) {
+                        minioReader.markProcessed(fileKey);
+                        log.info("File {} processed: {}/{} rows sent to Kafka.", fileKey, successCount, rows.size());
+                    } else {
+                        log.warn("File {} NOT marked as processed: only {}/{} rows sent successfully.", fileKey, successCount, rows.size());
+                    }
 
                 } catch (Exception e) {
                     log.error("Failed to process file {}", fileKey, e);

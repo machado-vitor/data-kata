@@ -21,13 +21,22 @@ class SalesEventDeserializationSchema extends DeserializationSchema[SalesEvent]:
     val json = mapper.readTree(message)
 
     val payload = json
+    val rawJson = new String(message, StandardCharsets.UTF_8)
+
+    val saleId = getStringField(payload, "saleId", "sale_id", "id")
+    if saleId.isEmpty then
+      logger.warn("Missing saleId in record, defaulting to empty string. Raw JSON: {}", rawJson)
+
+    val amount = getDoubleField(payload, "amount")
+    if amount == 0.0 then
+      logger.warn("Missing or zero amount in record, defaulting to 0.0. Raw JSON: {}", rawJson)
 
     SalesEvent(
-      saleId = getStringField(payload, "saleId", "sale_id", "id"),
+      saleId = saleId,
       salesmanName = getStringField(payload, "salesmanName", "salesman_name", "salesman"),
       city = getStringField(payload, "city"),
       country = getStringField(payload, "country"),
-      amount = getDoubleField(payload, "amount"),
+      amount = amount,
       product = getStringField(payload, "product"),
       eventTime = getTimestampField(payload, "eventTime", "saleDate", "sale_date", "event_time", "created_at"),
       source = getStringField(payload, "source"),
@@ -69,6 +78,7 @@ class SalesEventDeserializationSchema extends DeserializationSchema[SalesEvent]:
                 val ldt = java.time.LocalDateTime.parse(text, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                 ldt.toInstant(java.time.ZoneOffset.UTC).toEpochMilli
               catch case _: Exception =>
+                logger.warn("Failed to parse eventTime from text '{}', falling back to System.currentTimeMillis()", text)
                 System.currentTimeMillis()
         else if node.isLong || node.isInt then
           val ts = node.asLong(0L)
@@ -77,7 +87,10 @@ class SalesEventDeserializationSchema extends DeserializationSchema[SalesEvent]:
           else ts * 1000                                   // seconds to millis
         else node.asLong(System.currentTimeMillis())
       }
-      .getOrElse(System.currentTimeMillis())
+      .getOrElse {
+        logger.warn("No eventTime field found in record, falling back to System.currentTimeMillis()")
+        System.currentTimeMillis()
+      }
 
 
 class SalesEventSerializationSchema extends SerializationSchema[SalesEvent]:

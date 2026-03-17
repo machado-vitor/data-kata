@@ -16,6 +16,7 @@ import java.util.concurrent.ThreadLocalRandom;
         targetNamespace = "http://soap.datakata.com/sales",
         endpointInterface = "com.datakata.soap.service.SalesService"
 )
+@org.springframework.stereotype.Service
 public class SalesServiceImpl implements SalesService {
 
     private static final Logger log = LoggerFactory.getLogger(SalesServiceImpl.class);
@@ -55,10 +56,12 @@ public class SalesServiceImpl implements SalesService {
             String city = CITIES[random.nextInt(CITIES.length)];
             String product = PRODUCTS[random.nextInt(PRODUCTS.length)];
             double amount = Math.round(random.nextDouble(50.0, 5000.0) * 100.0) / 100.0;
-            long saleDate = random.nextLong(
-                    Math.max(sinceTimestamp, now - 86_400_000L),
-                    now + 1
-            );
+            long lowerBound = Math.max(sinceTimestamp, now - 86_400_000L);
+            long upperBound = now + 1;
+            if (lowerBound >= upperBound) {
+                lowerBound = now - 60_000L; // fallback to last minute
+            }
+            long saleDate = random.nextLong(lowerBound, upperBound);
 
             Sale sale = new Sale(saleId, salesman, city, COUNTRY, amount, product, saleDate);
             sales.add(sale);
