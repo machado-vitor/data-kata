@@ -1,7 +1,7 @@
 package com.datakata.producer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -60,7 +60,7 @@ public class KafkaProducerService {
                             key, metadata.topic(), metadata.partition(), metadata.offset());
                 }
             }).get();
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to serialize row to JSON", e);
             throw new RuntimeException("Failed to serialize row to JSON", e);
         }

@@ -1,8 +1,8 @@
 package com.datakata.producer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -72,7 +72,7 @@ public class KafkaProducerService {
                             sale.getSaleId(), metadata.topic(), metadata.partition(), metadata.offset());
                 }
             }).get();
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to serialize sale {} to JSON", sale.getSaleId(), e);
             throw new RuntimeException("Failed to serialize sale to JSON", e);
         }

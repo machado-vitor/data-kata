@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "3.5.11"
+    id("org.springframework.boot") version "4.1.0-M2"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -13,6 +13,7 @@ java {
 }
 
 repositories {
+    maven { url = uri("https://repo.spring.io/milestone") }
     mavenCentral()
 }
 
@@ -22,11 +23,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
 
     // PostgreSQL JDBC driver
-    implementation("org.postgresql:postgresql:42.7.4")
+    implementation("org.postgresql:postgresql:42.7.10")
 
     // Kafka client
     implementation("org.apache.kafka:kafka-clients:4.2.0")
 
-    // Jackson for JSON serialization
-    implementation("com.fasterxml.jackson.core:jackson-databind")
+    // Jackson 3 for JSON serialization (managed by Spring Boot)
+    implementation("tools.jackson.core:jackson-databind")
 }

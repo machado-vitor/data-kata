@@ -5,10 +5,10 @@ A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sa
 ## Architecture
 
 ```
- ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
- │  PostgreSQL   │    │    MinIO      │    │ SOAP Service │
- │  (Source DB)  │    │ (S3 Files)   │    │  (WS-* API)  │
- └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+ ┌──────────────┐     ┌──────────────┐    ┌──────────────┐
+ │  PostgreSQL  │     │    MinIO     │    │ SOAP Service │
+ │  (Source DB) │     │ (S3 Files)   │    │  (WS-* API)  │
+ └──────┬───────┘     └──────┬───────┘    └──────┬───────┘
         │ pg-producer        │ files-producer    │ ws-producer
         ▼                    ▼                   ▼
  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
@@ -35,11 +35,11 @@ A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sa
        │                       │
        ▼                       ▼
 ┌──────────────────────────────────────┐
-│           ClickHouse                  │
-│  top_sales_city │ top_salesman_country│
-└─────────────────┬────────────────────┘
-                  │
-                  ▼
+│            ClickHouse                │
+│ top_sales_city │ top_salesman_country│
+└────────────────┬─────────────────────┘
+                 │
+                 ▼
           ┌──────────────┐
           │ Results API  │
           │ (Spring Boot)│
@@ -55,33 +55,25 @@ A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sa
 
 ## Technology Stack
 
-| Layer | Technology | Language |
-|---|---|---|
-| Relational DB Source | PostgreSQL 16 | SQL |
-| File System Source | MinIO (S3-compatible) | - |
-| WS-* Source | Apache CXF SOAP Service | Java 25 |
-| Message Broker | Apache Kafka (KRaft) | - |
-| Ingestion - DB | Custom Spring Boot Producer | Java 25 |
-| Ingestion - Files | Custom Spring Boot Producer | Java 25 |
-| Ingestion - SOAP | Custom Spring Boot Producer | Java 25 |
-| Stream Processing | Apache Flink 1.20 | Scala 3 |
-| Data Lineage | OpenLineage + Marquez | - |
-| Observability | Prometheus + Grafana | - |
-| Results Database | ClickHouse | - |
-| Results API | Spring Boot 3 (WebFlux) | Kotlin |
+- **Language**: Java 25
+- **Ingestion & API**: Spring Boot, Apache CXF
+- **Stream Processing**: Apache Flink
+- **Message Broker**: Apache Kafka (KRaft)
+- **Databases**: PostgreSQL (source), ClickHouse (analytical)
+- **Object Storage**: MinIO (S3-compatible)
+- **Data Lineage**: OpenLineage + Marquez
+- **Observability**: Prometheus + Grafana
 
 ## Prerequisites
 
 - Docker Engine 24+
 - Docker Compose v2+
 - 16 GB RAM allocated to Docker (recommended)
-- `make`, `curl`, `jq` installed on host
-- Optional: `psql`, `mc` (MinIO client) for seed scripts
+- `make` installed on host
 
 ## Quick Start
 
 ```bash
-# Clone and start everything
 git clone <repository-url>
 cd data-kata
 make up
@@ -90,7 +82,8 @@ make up
 This will:
 1. Build all Docker images (producers, SOAP service, Flink jobs, Results API)
 2. Start all infrastructure (Kafka, PostgreSQL, MinIO, ClickHouse, etc.)
-3. Submit Flink processing jobs
+3. Pre-create Kafka topics
+4. Submit Flink processing jobs
 
 ## Service URLs
 
@@ -128,6 +121,7 @@ curl http://localhost:8080/api/v1/health
 make up                 Start everything
 make down               Stop everything
 make build              Build all images
+make create-topics      Pre-create Kafka topics required by Flink
 make submit-flink-jobs  Submit Flink jobs
 make status             Show service status and URLs
 make logs               Follow all logs

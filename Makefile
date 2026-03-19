@@ -9,6 +9,7 @@ up: build ## Start everything
 	docker compose up -d
 	@echo "Waiting for services to become healthy..."
 	@sleep 45
+	$(MAKE) create-topics
 	$(MAKE) submit-flink-jobs
 	@echo ""
 	@echo "=== Data Kata is running! ==="
@@ -20,6 +21,12 @@ down: ## Stop everything
 
 build: ## Build all images
 	docker compose build
+
+create-topics: ## Pre-create Kafka topics required by Flink
+	@echo "Creating Kafka topics..."
+	@docker exec datakata-kafka kafka-topics --bootstrap-server localhost:9092 \
+		--create --topic sales.unified --partitions 1 --replication-factor 1 --if-not-exists 2>/dev/null || true
+	@echo "Topics ready."
 
 submit-flink-jobs: ## Submit Flink jobs via REST API
 	@echo "Submitting Flink jobs..."

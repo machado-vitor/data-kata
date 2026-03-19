@@ -288,7 +288,7 @@ services:
     networks:
       - datakata
 
-  # ─── Results API (Kotlin + Spring Boot) ────────────────────────────
+  # ─── Results API (Java + Spring Boot) ───────────────────────────────
   results-api:
     build:
       context: ./results-api

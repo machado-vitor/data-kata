@@ -8,8 +8,9 @@
 # Gradle
 .gradle/
 build/
+.kotlin/
 
-# sbt
+# sbt (legacy)
 target/
 project/project/
 project/target/
