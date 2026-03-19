@@ -1,10 +1,8 @@
 package com.datakata.producer;
 
-import io.minio.GetObjectArgs;
-import io.minio.ListObjectsArgs;
-import io.minio.MinioClient;
-import io.minio.Result;
+import io.minio.*;
 import io.minio.messages.Item;
+import io.minio.messages.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +18,8 @@ import java.util.*;
 public class MinioReader {
 
     private static final Logger log = LoggerFactory.getLogger(MinioReader.class);
+    private static final String TAG_STATUS = "pipeline-status";
+    private static final String TAG_PROCESSED = "processed";
 
     @Value("${minio.endpoint}")
     private String endpoint;
@@ -37,7 +37,6 @@ public class MinioReader {
     private String prefix;
 
     private MinioClient client;
-    private final Set<String> processedFiles = new HashSet<>();
 
     @PostConstruct
     public void init() {
@@ -61,7 +60,7 @@ public class MinioReader {
             for (Result<Item> result : results) {
                 Item item = result.get();
                 String key = item.objectName();
-                if (key.endsWith(".csv") && !processedFiles.contains(key)) {
+                if (key.endsWith(".csv") && !isProcessed(key)) {
                     newFiles.add(key);
                 }
             }
@@ -69,6 +68,20 @@ public class MinioReader {
             log.error("Failed to list MinIO objects", e);
         }
         return newFiles;
+    }
+
+    private boolean isProcessed(String objectKey) {
+        try {
+            Tags tags = client.getObjectTags(
+                    GetObjectTagsArgs.builder()
+                            .bucket(bucket)
+                            .object(objectKey)
+                            .build());
+            return TAG_PROCESSED.equals(tags.get().get(TAG_STATUS));
+        } catch (Exception e) {
+            log.debug("Could not read tags for {}: {}", objectKey, e.getMessage());
+            return false;
+        }
     }
 
     public List<Map<String, String>> readCsv(String objectKey) {
@@ -104,6 +117,16 @@ public class MinioReader {
     }
 
     public void markProcessed(String objectKey) {
-        processedFiles.add(objectKey);
+        try {
+            client.setObjectTags(
+                    SetObjectTagsArgs.builder()
+                            .bucket(bucket)
+                            .object(objectKey)
+                            .tags(Map.of(TAG_STATUS, TAG_PROCESSED))
+                            .build());
+            log.info("Tagged {} as processed in MinIO", objectKey);
+        } catch (Exception e) {
+            log.error("Failed to tag {} as processed in MinIO", objectKey, e);
+        }
     }
 }

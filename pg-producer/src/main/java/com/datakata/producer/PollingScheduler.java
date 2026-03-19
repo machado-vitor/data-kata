@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.Map;
 
@@ -21,7 +22,12 @@ public class PollingScheduler {
     public PollingScheduler(PostgresClient postgresClient, KafkaProducerService kafkaProducerService) {
         this.postgresClient = postgresClient;
         this.kafkaProducerService = kafkaProducerService;
-        log.info("PollingScheduler initialized. Incremental polling by max(id), starting from 0.");
+    }
+
+    @PostConstruct
+    public void init() {
+        lastMaxId = postgresClient.loadOffset();
+        log.info("PollingScheduler initialized. Incremental polling by max(id), starting from {}.", lastMaxId);
     }
 
     @Scheduled(fixedDelay = 10000)
@@ -51,6 +57,7 @@ public class PollingScheduler {
                 }
             }
 
+            postgresClient.saveOffset(lastMaxId);
             log.info("Poll complete. Sent {}/{} sales to Kafka. lastMaxId={}", successCount, rows.size(), lastMaxId);
 
         } catch (Exception e) {

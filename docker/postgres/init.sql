@@ -1,5 +1,11 @@
 -- PostgreSQL init: schema + seed data for Data Kata
 
+CREATE TABLE producer_offsets (
+    producer_id VARCHAR(100) PRIMARY KEY,
+    offset_value BIGINT NOT NULL DEFAULT 0,
+    updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE salesman (
     id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,

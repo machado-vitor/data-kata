@@ -17,6 +17,7 @@ import java.util.Map;
 public class PostgresClient {
 
     private static final Logger log = LoggerFactory.getLogger(PostgresClient.class);
+    private static final String PRODUCER_ID = "pg-producer";
 
     @Value("${postgres.url}")
     private String url;
@@ -41,6 +42,43 @@ public class PostgresClient {
             log.info("Connected to PostgreSQL at {}", url);
         } catch (SQLException e) {
             log.error("Failed to connect to PostgreSQL", e);
+        }
+    }
+
+    public long loadOffset() {
+        String sql = "SELECT offset_value FROM producer_offsets WHERE producer_id = ?";
+        try {
+            connect();
+            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                stmt.setString(1, PRODUCER_ID);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        long offset = rs.getLong("offset_value");
+                        log.info("Loaded persisted offset: lastMaxId={}", offset);
+                        return offset;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            log.warn("Failed to load offset from producer_offsets, starting from 0", e);
+        }
+        return 0;
+    }
+
+    public void saveOffset(long lastMaxId) {
+        String sql = """
+            INSERT INTO producer_offsets (producer_id, offset_value, updated_at)
+            VALUES (?, ?, NOW())
+            ON CONFLICT (producer_id) DO UPDATE SET offset_value = EXCLUDED.offset_value, updated_at = NOW()""";
+        try {
+            connect();
+            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                stmt.setString(1, PRODUCER_ID);
+                stmt.setLong(2, lastMaxId);
+                stmt.executeUpdate();
+            }
+        } catch (SQLException e) {
+            log.error("Failed to save offset to producer_offsets", e);
         }
     }
 
@@ -73,7 +111,6 @@ public class PostgresClient {
             }
         } catch (SQLException e) {
             log.error("Failed to query sales table", e);
-            // Force reconnect on next attempt
             try { connection.close(); } catch (Exception ignored) {}
             connection = null;
         }
