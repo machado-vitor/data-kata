@@ -11,9 +11,9 @@ graph TB
     end
 
     subgraph Ingestion ["Ingestion (Spring Boot / Java)"]
-        PGP[pg-producer<br/>polls every 10s<br/>:8092]
-        FP[files-producer<br/>polls every 30s<br/>:8093]
-        WSP[ws-producer<br/>polls every 30s<br/>:8091]
+        PGP[pg-producer<br/>polls every 10s<br/>offset in PostgreSQL<br/>:8092]
+        FP[files-producer<br/>polls every 30s<br/>dedup via MinIO tags<br/>:8093]
+        WSP[ws-producer<br/>polls every 30s<br/>offset in local file<br/>:8091]
     end
 
     subgraph Kafka ["Apache Kafka 7.6.1 (KRaft / :9092)"]
@@ -23,7 +23,7 @@ graph TB
         KT4>sales.unified]
     end
 
-    subgraph Flink ["Apache Flink 1.20 (Scala 3)"]
+    subgraph Flink ["Apache Flink 2.2 (Java)"]
         JM[JobManager<br/>:8081]
         TM[TaskManager<br/>x2 replicas / 4 slots each]
         NJ[NormalizationJob]
@@ -40,7 +40,7 @@ graph TB
         CH_INIT[init.sql<br/>top_sales_city table<br/>top_salesman_country table]
     end
 
-    subgraph API ["REST API (Spring Boot / Kotlin / :8080)"]
+    subgraph API ["REST API (Spring Boot / Java / :8080)"]
         REST[results-api<br/>/api/v1/sales/top-by-city<br/>/api/v1/sales/top-salesman<br/>/api/v1/health]
     end
 
@@ -61,9 +61,11 @@ graph TB
     PG_INIT -.->|seeds on first start| PG
     MINIO_INIT -.->|seeds CSV files| MINIO
 
-    %% Source to Ingestion
+    %% Source to Ingestion (with offset persistence)
     PG --> PGP
+    PGP -.->|saves offset| PG
     MINIO --> FP
+    FP -.->|tags processed files| MINIO
     SOAP --> WSP
 
     %% Ingestion to Kafka
