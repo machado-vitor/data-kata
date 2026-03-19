@@ -5,52 +5,64 @@ A modern end-to-end data pipeline running entirely on Docker Compose. Ingests sa
 ## Architecture
 
 ```
- ┌──────────────┐     ┌──────────────┐    ┌──────────────┐
- │  PostgreSQL  │     │    MinIO     │    │ SOAP Service │
- │  (Source DB) │     │ (S3 Files)   │    │  (WS-* API)  │
- └──────┬───────┘     └──────┬───────┘    └──────┬───────┘
-        │ pg-producer        │ files-producer    │ ws-producer
-        ▼                    ▼                   ▼
- ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
- │sales.postgres│    │ sales.files  │    │ sales.legacy │
- └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
-        │                   │                   │
-        └───────────┬───────┴───────────────────┘
-                    ▼
-          ┌─────────────────┐
-          │  Apache Flink   │
-          │ NormalizationJob│
-          └────────┬────────┘
-                   ▼
-          ┌─────────────────┐
-          │  sales.unified  │  (Kafka topic)
-          └───────┬─┬───────┘
-                  │ │
-       ┌──────────┘ └──────────┐
-       ▼                       ▼
-┌──────────────┐       ┌───────────────┐
-│TopSalesCity  │       │TopSalesmanJob │
-│    Job       │       │  Country Job  │
-└──────┬───────┘       └───────┬───────┘
-       │                       │
-       ▼                       ▼
-┌──────────────────────────────────────┐
-│            ClickHouse                │
-│ top_sales_city │ top_salesman_country│
-└────────────────┬─────────────────────┘
-                 │
-                 ▼
-          ┌──────────────┐
-          │ Results API  │
-          │ (Spring Boot)│
-          └──────┬───────┘
-                 │
-    ┌────────────┼────────────┐
-    ▼            ▼            ▼
-  /top-by-city  /top-salesman /health
+                           DATA SOURCES
+  ┌────────────────┐   ┌────────────────┐    ┌────────────────┐
+  │   PostgreSQL   │   │     MinIO      │    │  SOAP Service  │
+  │   (Source DB)  │   │   (S3 Files)   │    │   (WS-* API)   │
+  └───────┬────────┘   └───────┬────────┘    └───────┬────────┘
+          │                    │                     │
+          │ pg-producer        │ files-producer      │ ws-producer
+          │ checkpoint: PG     │ checkpoint: S3 tags │ checkpoint: file
+          ▼                    ▼                     ▼
+ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                       APACHE KAFKA (KRaft)
+  ┌────────────────┐   ┌────────────────┐    ┌────────────────┐
+  │ sales.postgres │   │  sales.files   │    │  sales.legacy  │
+  └───────┬────────┘   └───────┬────────┘    └───────┬────────┘
+          └────────────────────┼─────────────────────┘
+ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┼┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                               ▼
+ ╔═════════════════════════════════════════════════════════════════╗
+ ║                      APACHE FLINK (3 jobs)                      ║
+ ║                                                                 ║
+ ║                  ┌──────────────────────────┐                   ║
+ ║                  │     NormalizationJob     │                   ║
+ ║                  │   3 topics → 1 unified   │                   ║
+ ║                  └────────────┬─────────────┘                   ║
+ ║                               ▼                                 ║
+ ║     ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄     ║
+ ║                       APACHE KAFKA                              ║
+ ║                      ┌────────────────┐                         ║
+ ║                      │ sales.unified  │                         ║
+ ║                      └───────┬─┬──────┘                         ║
+ ║     ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┼┄┼┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄     ║
+ ║                   ┌──────────┘ └─────────┐                      ║
+ ║                   ▼                      ▼                      ║
+ ║          ┌──────────────────┐   ┌──────────────────┐            ║
+ ║          │ TopSalesCityJob  │   │ TopSalesmanJob   │            ║
+ ║          │  1h windows      │   │  1h windows      │            ║
+ ║          │  top 10 cities   │   │  top 10 BR       │            ║
+ ║          └────────┬─────────┘   └────────┬─────────┘            ║
+ ║                   └─────────┬────────────┘                      ║
+ ╚═════════════════════════════╪═══════════════════════════════════╝
+                               ▼
+ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                           CLICKHOUSE
+            ┌──────────────────────────────────────────┐
+            │  top_sales_city  │  top_salesman_country │
+            └──────────────────┬───────────────────────┘
+                               ▼
+                        ┌──────────────┐
+                        │  Results API │   Spring Boot (WebFlux)
+                        │    :8080     │
+                        └──────┬───────┘
+                 ┌─────────────┼─────────────┐
+                 ▼             ▼             ▼
+            /top-by-city  /top-salesman   /health
 
-  Observability: Prometheus + Grafana
-  Data Lineage:  OpenLineage + Marquez
+ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  OBSERVABILITY                DATA LINEAGE
+  Prometheus + Grafana         OpenLineage + Marquez
 ```
 
 ## Technology Stack
